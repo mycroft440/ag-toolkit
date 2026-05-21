@@ -3100,7 +3100,7 @@ def apply_diff(args):
         print_warning("Git apply falhou ou nao e um repo Git. Tentando fallback para 'patch'...")
         # Fallback para utilitario patch (comum em linux)
         try:
-            with open(patch_path, 'r') as f:
+            with open(patch_path, 'r', encoding='utf-8') as f:
                 res_p = subprocess.run(['patch', '-p1'], cwd=str(ROOT_PATH), stdin=f, capture_output=True, text=True)
             if res_p.returncode == 0:
                 print_success("Patch aplicado com sucesso via Patch Engine.")
