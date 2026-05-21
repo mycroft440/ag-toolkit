@@ -752,8 +752,36 @@ def create_file(args):
     save_change("create-file", path, content, "Arquivo criado com sucesso desde o zero.", args.preview, args.dry_run)
 
 def replace_text(args):
-    print_header("Replace Text (Single or Batch)")
+    print_header("Replace Text (Single, Batch or Patch)")
     
+    if hasattr(args, 'jsonpatch') and args.jsonpatch:
+        import json, base64
+        try:
+            patch_str = decode_base64_if_needed(args.jsonpatch, args.b64)
+            patch_data = json.loads(patch_str)
+        except Exception as e:
+            print_error_and_exit(f"JSON Patch invalido: {e}")
+            
+        path = resolve_project_path(args.file)
+        raw = path.read_text(encoding='utf-8')
+        count = 0
+        for item in patch_data:
+            fnd = item.get('find')
+            rpl = item.get('replace')
+            if fnd and rpl is not None:
+                if args.b64:
+                    try:
+                        fnd = base64.b64decode(fnd).decode('utf-8')
+                        rpl = base64.b64decode(rpl).decode('utf-8')
+                    except: pass
+                matches = get_matches_robust(raw, fnd, getattr(args, 'fuzzy', False))
+                if matches:
+                    m = matches[0]
+                    raw = raw[:m.start()] + rpl + raw[m.end():]
+                    count += 1
+        save_change("replace-patch", path, raw, f"Aplicados {count} patches via JSON", getattr(args, 'preview', False), getattr(args, 'dry_run', False))
+        return
+
     decoded_find = decode_base64_if_needed(args.findtext, args.b64)
     repl = get_replacement_content(args.newcontent, args.newcontentpath, args.allowemptycontent, args.b64, getattr(args, 'stdin', False))
     
@@ -795,8 +823,9 @@ def replace_text(args):
         try:
             start_l, end_l = map(int, args.lines.split('-'))
             lines_array = raw.splitlines()
-            if start_l < 1 or end_l > len(lines_array) or start_l > end_l:
-                print_error_and_exit("Range de linhas invalido.")
+            if start_l < 1: start_l = 1
+            if end_l > len(lines_array): end_l = len(lines_array)
+            if start_l > end_l: print_error_and_exit("Range de linhas invalido.")
 
             new_lines_array = lines_array[:start_l-1] + repl.splitlines() + lines_array[end_l:]
             new_raw = "\n".join(new_lines_array)
@@ -3699,44 +3728,47 @@ def ast_edit(args):
         try: new_content = base64.b64decode(new_content).decode('utf-8')
         except: print_error_and_exit("Base64 invalido.")
         
-    start_line = -1
-    for i, line in enumerate(lines):
-        if args.method in line and ('fun ' in line or 'void ' in line or 'def ' in line or 'function ' in line):
-            start_line = i
-            break
-            
-    if start_line == -1:
-        print_error_and_exit(f"Assinatura do metodo '{args.method}' nao encontrada.")
-        
-    print_step(f"Metodo detectado na linha {start_line+1}.")
-    
+        start_line = -1
     end_line = -1
-    if file_path.suffix in ['.kt', '.java', '.js', '.ts']:
-        stack = 0
-        found_open = False
-        for i in range(start_line, len(lines)):
-            line = lines[i].split('//')[0]
-            for c in line:
-                if c == '{':
-                    stack += 1
-                    found_open = True
-                elif c == '}':
-                    stack -= 1
-                    if found_open and stack == 0:
-                        end_line = i
-                        break
-            if end_line != -1: break
+    target = getattr(args, 'classname', None) or args.method
+    
+    if file_path.suffix == '.py':
+        import ast
+        try:
+            tree = ast.parse(text)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == target:
+                    start_line = node.lineno - 1
+                    end_line = node.end_lineno - 1
+                    break
+        except Exception as e:
+            print_error_and_exit(f"Erro de parse AST no Python: {e}")
             
-        if end_line == -1:
-            print_error_and_exit("Falha no AST: nao foi possivel achar fechamento '}' do metodo.")
-    else:
-        base_indent = len(lines[start_line]) - len(lines[start_line].lstrip())
-        for i in range(start_line+1, len(lines)):
-            if lines[i].strip() and (len(lines[i]) - len(lines[i].lstrip())) <= base_indent:
-                end_line = i - 1
+    if start_line == -1 and file_path.suffix in ['.kt', '.java', '.js', '.ts']:
+        for i, line in enumerate(lines):
+            if target in line and ('class ' in line or 'fun ' in line or 'void ' in line or 'def ' in line or 'function ' in line):
+                start_line = i
                 break
-        if end_line == -1: end_line = len(lines) - 1
-        
+                
+        if start_line != -1:
+            stack = 0
+            found_open = False
+            for i in range(start_line, len(lines)):
+                line = lines[i].split('//')[0]
+                for c in line:
+                    if c == '{':
+                        stack += 1
+                        found_open = True
+                    elif c == '}':
+                        stack -= 1
+                        if found_open and stack == 0:
+                            end_line = i
+                            break
+                if end_line != -1: break
+
+    if start_line == -1 or end_line == -1:
+        print_error_and_exit(f"Assinatura de '{target}' nao encontrada ou nao fechada.")
+
     print_step(f"Fronteira AST descoberta: {start_line+1} ate {end_line+1}.")
     
     args.lines = f"{start_line+1}-{end_line+1}"
@@ -4166,9 +4198,12 @@ def main():
     parser.add_argument('--after', type=int, default=20)
     parser.add_argument('--allowemptycontent', action='store_true')
     parser.add_argument('--lines', type=str, help='Substitui por num de linha X-Y')
-    parser.add_argument('--method', type=str, help='Nome do metodo (para ast-edit)')
+    parser.add_argument('--method', type=str, help='Nome do metodo (para ast-edit/rf)')
+    parser.add_argument('--classname', type=str, help='Nome da classe (para ast-edit/rc)')
     parser.add_argument('--maxmatches', type=int, default=50)
     parser.add_argument('--json', dest='json_mode', action='store_true')
+    parser.add_argument('--jsonpatch', type=str, help='Lista JSON de replaces base64')
+    parser.add_argument('--signatures', action='store_true', help='Modo arvore para ast-map (padrao)')
     parser.add_argument('--dry-run', action='store_true', help='Mostra o diff sem aplicar a alteração')
     parser.add_argument('--old', type=str)
     parser.add_argument('--new', type=str)
@@ -4250,7 +4285,7 @@ def main():
         elif action in ['examples', 'example']: agent_examples(args)
         elif action in ['explain']: agent_explain(args)
         elif action in ['system-prompt']: agent_system_prompt(args)
-        elif action in ['ast-edit']: ast_edit(args)
+        elif action in ['ast-edit', 'rf', 'rc']: ast_edit(args)
         elif action in ['slim-context']: slim_context(args)
         elif action in ['init-treesitter']: init_treesitter(args)
         elif action in ['semantic-ast']: semantic_ast(args)
