@@ -577,15 +577,27 @@ def get_matches_robust(content: str, query: str, fuzzy: bool) -> list:
     tokens = [re.escape(t) for t in re.split(r'\s+', query.strip()) if t]
     if not tokens: return []
     
-    # Constroi um regex que permite qualquer quantidade de whitespace entre os tokens
+        # Constroi um regex que permite qualquer quantidade de whitespace entre os tokens
     pattern_fuzzy = r'\s+'.join(tokens)
     matches_fuzzy = list(re.finditer(pattern_fuzzy, content, flags=re.MULTILINE | re.DOTALL))
-    
+
     if matches_fuzzy:
         if not fuzzy:
             print_warning(f"Smart Match encontrou {len(matches_fuzzy)} ocorrencia(s) que o Literal Match ignorou.")
         return matches_fuzzy
-        
+
+    # Tentativa 3: Unicode Normalized Match (para emojis e caracteres multibyte)
+    import unicodedata
+    norm_content = unicodedata.normalize('NFC', content)
+    norm_query   = unicodedata.normalize('NFC', query)
+    if norm_content != content or norm_query != query:
+        print_step("Tentando Unicode Normalized Match (NFC)...")
+        pattern_nfc = re.escape(norm_query).replace(r'\r\n', r'\n').replace(r'\n', r'\r?\n')
+        matches_nfc = list(re.finditer(pattern_nfc, norm_content, flags=re.MULTILINE))
+        if matches_nfc:
+            print_warning(f"Unicode NFC Match encontrou {len(matches_nfc)} ocorrencia(s).")
+            return matches_nfc
+
     return []
 
 def assert_expected_count(found: int, expected: int, op_name: str, force: bool):
@@ -716,6 +728,8 @@ def context_window(file_arg: str, find_text: str, before: int, after: int, max_m
         for i in range(start, end + 1):
             prefix = ">>" if i == m else "  "
             out_lines.append(f"{prefix} {i + 1:5}: {lines[i].rstrip()}")
+        if end >= len(lines) - 1:
+            out_lines.append(f"       [EOF] Fim do arquivo ({len(lines)} linhas)")
         out_lines.append("")
 
     (AGENT_DIR / "LAST_CONTEXT.md").write_text('\n'.join(out_lines), encoding='utf-8')
@@ -792,7 +806,7 @@ def replace_text(args):
         print_step(f"Modo Batch ativado no diretorio: {target_dir}")
         count_files = 0
         count_replaces = 0
-        extensions = ['.py', '.kt', '.java', '.js', '.ts', '.html', '.css', '.xml', '.yml', '.yaml', '.md', '.txt']
+        extensions = ['.py', '.pyw', '.kt', '.java', '.js', '.ts', '.html', '.css', '.xml', '.yml', '.yaml', '.md', '.txt']
         for p in target_dir.rglob('*'):
             if not p.is_file() or p.suffix.lower() not in extensions: continue
             if any(part in p.parts for part in ['.git', 'build', '.ag-agent', 'node_modules', '__pycache__']): continue
@@ -849,7 +863,10 @@ def replace_text(args):
         if repl and repl.strip() and get_matches_robust(raw, repl, args.fuzzy):
             print_success("Idempotencia: O novo texto ja esta presente no arquivo. Skip realizado.")
             return
-        print_error_and_exit("Texto procurado nao encontrado. Tente ativar --fuzzy.")
+        preview = decoded_find[:80].replace("\n", "\\n")
+        print_error_and_exit(f"Texto procurado nao encontrado.\n"
+                             f"     Preview da busca: '{preview}'\n"
+                             f"     Dicas: (1) Tente --fuzzy  (2) Se contem emojis, use script Python externo  (3) Use --lines para splice direto")
     assert_expected_count(len(matches), args.expectedcount, "replace-text", args.force)
 
     new_raw = raw
@@ -1175,7 +1192,7 @@ def build_check():
         if any(x in root for x in ['.git', '.ag-agent', 'build', 'node_modules']): continue
         for file in files:
             p = Path(root) / file
-            if p.suffix.lower() in ['.kt', '.java', '.py']:
+            if p.suffix.lower() in ['.kt', '.java', '.py', '.pyw']:
                 try:
                     content = p.read_text(encoding='utf-8', errors='replace')
                     if not check_basic_syntax(p, content):
@@ -1428,7 +1445,7 @@ def ast_map(args):
     report = ["# PROJECT AST MAP (SIGNATURES ONLY)\n"]
     file_count = 0
 
-    extensions = ['.py', '.kt', '.ts', '.js', '.java', '.cpp', '.h']
+    extensions = ['.py', '.pyw', '.kt', '.ts', '.js', '.java', '.cpp', '.h']
 
     custom_composables = set()
     if target_dir.exists():
@@ -2867,7 +2884,7 @@ def audit_project(args):
     initialize_agent_dirs()
     all_risks = {}
     
-    extensions = ['.kt', '.java', '.py', '.js', '.ts', '.html', '.css', '.gradle']
+    extensions = ['.kt', '.java', '.py', '.pyw', '.js', '.ts', '.html', '.css', '.gradle']
     files_scanned = 0
     
     print_step("Iniciando varredura profunda em todos os arquivos de codigo...")
@@ -3225,7 +3242,7 @@ def semantic_search(args):
     
     scores = {}
     for p in ROOT_PATH.rglob("*"):
-        if p.is_file() and p.suffix in ['.kt', '.java', '.xml', '.py', '.md']:
+        if p.is_file() and p.suffix in ['.kt', '.java', '.xml', '.py', '.pyw', '.md']:
             if not any(part in p.parts for part in ['.git', '.ag-agent', 'node_modules', 'build', 'dist', '.gradle']):
                 try:
                     content = p.read_text(encoding='utf-8').lower()
@@ -3793,7 +3810,7 @@ def index_project(args):
         if '.git' in root or '.ag-agent' in root or 'build' in root or 'node_modules' in root: continue
         for f in files:
             p = Path(root) / f
-            if p.suffix in ['.py', '.kt', '.java', '.js', '.xml', '.md', '.json', '.txt', '.css', '.html']:
+            if p.suffix in ['.py', '.pyw', '.kt', '.java', '.js', '.xml', '.md', '.json', '.txt', '.css', '.html']:
                 try:
                     text = p.read_text(encoding='utf-8')
                     c.execute("INSERT INTO fts_index (path, content) VALUES (?, ?)", (str(p), text))
@@ -4083,6 +4100,12 @@ def map_tools(args):
             "map-tools": "Exibe capacidades em JSON",
             "doctor": "Verificacao ambiental do Toolkit"
         },
+        "⚡ IA Best Practices & Token Economy": {
+            "regra_1": "NUNCA use comandos de file nativos (view_file, etc). USE SEMPRE o ag_toolkit.py",
+            "economia_1_map": "Para entender o arquivo, prefira 'ast-map' ou 'slim-context'. Evite 'context' com janelas enormes.",
+            "economia_2_lote": "Use 'rt --jsonpatch <file.json>' para fazer 5+ edicoes de uma vez sem gastar tokens em chamadas repetitivas.",
+            "economia_3_foco": "Sempre que possivel, direcione a edicao exata com '--lines' ou '--method' ao inves de replace generico."
+        },
         "File & Code Editing": {
             "rl": "Replace cirurgico por linhas (ex: --lines 10-20 -c b64) - ECONOMIZA MUITO TOKENS",
             "bundle": "Funde multiplos arquivos python resolvendo imports (--files a.py b.py --output out.py)",
@@ -4167,6 +4190,13 @@ def map_tools(args):
             "spawn-task": "Thread Background worker",
             "list-tasks": "Status PIDs Threads",
             "task-logs": "Logs sub-threads"
+        },
+        "Troubleshooting & Dicas": {
+            "emoji_rt_fail": "Se rt falhar com emojis/Unicode, o motor tenta NFC normalization automaticamente. Se persistir, use script Python com splice por linhas.",
+            "pyw_suportado": "Arquivos .pyw sao reconhecidos como Python em ast-map, search e context.",
+            "path_fora_raiz": "Se receber 'Caminho fora da raiz', execute o toolkit com CWD no diretorio do arquivo-alvo.",
+            "eof_context": "O context agora exibe [EOF] quando a janela atinge o final do arquivo.",
+            "erro_enriquecido": "Quando rt falha, a mensagem mostra preview da busca e dicas de acao."
         }
     }
     print(json.dumps(tools))
