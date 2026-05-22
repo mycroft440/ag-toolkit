@@ -1446,6 +1446,9 @@ def ast_map(args):
     file_count = 0
 
     extensions = ['.py', '.pyw', '.kt', '.ts', '.js', '.java', '.cpp', '.h']
+    if hasattr(args, 'ext') and args.ext:
+        custom_exts = [e.strip() if e.strip().startswith('.') else f".{e.strip()}" for e in args.ext.split(',')]
+        extensions.extend(custom_exts)
 
     custom_composables = set()
     if target_dir.exists():
@@ -4240,6 +4243,7 @@ def main():
     parser.add_argument('--package', type=str, default='com.strategy.note')
     parser.add_argument('--output', type=str, default='app_screenshot.png')
     parser.add_argument('--files', nargs='+', dest='files', help='Lista de arquivos para bundle')
+    parser.add_argument('--ext', type=str, help='Extensões adicionais separadas por vírgula para ast-map (ex: .jsx,.tsx)')
 
     args, _ = parser.parse_known_args()
     action = args.action.lower() if args.action else 'help'
