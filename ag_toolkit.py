@@ -4145,6 +4145,37 @@ def map_tools(args):
         print("\n" + "-"*50)
         print("💡 DICA: Use 'python ag_toolkit.py explain -q <comando>' para ver sintaxe e exemplos de uso.")
 
+
+def export_tool_schema(args):
+    """V33: Exporta o JSON Schema oficial das ferramentas para consumo via IA."""
+    import json
+    schema = {
+        "type": "function",
+        "function": {
+            "name": "ag_toolkit",
+            "description": "Ferramenta faz-tudo para edicao de codigo (AST, Regex, Linhas) e analise de contexto.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "Comando a ser executado (ex: rt, ast-edit, cf, search, slim-context, ast-map)"
+                    },
+                    "file": {"type": "string", "description": "Caminho do arquivo (-f)"},
+                    "findtext": {"type": "string", "description": "Texto alvo (-q)"},
+                    "newcontent": {"type": "string", "description": "Novo codigo/texto em base64 (-c)"},
+                    "lines": {"type": "string", "description": "Substituicao por numero de linhas (ex: 10-20)"},
+                    "b64": {"type": "boolean", "description": "Obrigatorio se newcontent estiver em base64"},
+                    "regex": {"type": "boolean", "description": "Usa Regex para substituir no rt"},
+                    "method": {"type": "string", "description": "Nome do metodo para ast-edit"},
+                    "jsonpatch": {"type": "string", "description": "Lista JSON base64 para replaces em lote"}
+                },
+                "required": ["action"]
+            }
+        }
+    }
+    print(json.dumps(schema, indent=2))
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', type=str, nargs='?', default='help')
@@ -4318,6 +4349,7 @@ def main():
         elif action in ['list-builds']: list_builds(args)
         elif action in ['last-logs']: fetch_last_logs(args)
         elif action in ['map-tools']: map_tools(args)
+        elif action in ['export-schema', 'schema']: export_tool_schema(args)
         elif action in ['ldplayer', 'deploy-emul']: ldplayer_deploy(args)
         elif action in ['verify-sync', 'vs']:
             if args.dry_run:
