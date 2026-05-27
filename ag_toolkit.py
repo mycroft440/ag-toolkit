@@ -4222,6 +4222,7 @@ def main():
     parser.add_argument('-m', '--message', dest='message', type=str)
     parser.add_argument('--cmd', type=str, help='Comando especifico')
     parser.add_argument('--b64', action='store_true', help='Informa que find-text ou content estao em Base64')
+    parser.add_argument('--regex', action='store_true', help='Trata o texto de busca como expressao regular')
     parser.add_argument('--stdin', action='store_true', help='V25: Le o conteudo do buffer STDIN')
     parser.add_argument('--fuzzy', action='store_true', help='Ativa busca por tokens (ignora espacos/quebras)')
     parser.add_argument('--force', dest='force', action='store_true')
