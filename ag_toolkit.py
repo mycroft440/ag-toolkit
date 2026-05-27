@@ -4092,117 +4092,58 @@ def bundle_files(args):
     print_success(f"Arquivos agrupados com sucesso em {args.output}")
 
 def map_tools(args):
-    """V32: Exibe um manifesto JSON com todas as capacidades do toolkit."""
+    """V33: Exibe o Manifesto de Capacidades Estruturado do AG Toolkit para IAs."""
     import json
-    tools = {
-        "Emulator & Automation": {"ldplayer": "Auto deploy, run & screenshot on LDPlayer"}, "System & Onboarding": {
-            "onboard": "Manual Agent Onboarding",
-            "examples": "Payload exemplos JSON",
-            "explain": "Explicacao de comandos",
-            "system-prompt": "Regras do projeto",
-            "map-tools": "Exibe capacidades em JSON",
-            "doctor": "Verificacao ambiental do Toolkit"
+    manifest = {
+        "AI_DIRECTIVES (MANDATÓRIO)": {
+            "regra_suprema": "NUNCA use ferramentas nativas (view_file, write_to_file, replace_file_content) do sistema. USE SEMPRE este Toolkit (python ag_toolkit.py).",
+            "quando_usar_regex": "Use o 'rt --regex' para edições cirúrgicas em textos ou blocos parciais, aproveitando grupos de captura (\\1).",
+            "quando_usar_ast": "Use o 'ast-edit' para substituição completa e segura de Métodos ou Classes inteiras no Python/Kotlin. NUNCA use Regex para isso.",
+            "economia_tokens": "Evite o 'context' padrão. Prefira 'ast-map' ou 'slim-context' para mapear a anatomia sem gastar memória.",
+            "lotes": "Use 'rt --jsonpatch' para executar dezenas de edições com apenas uma chamada."
         },
-        "⚡ IA Best Practices & Token Economy": {
-            "regra_1": "NUNCA use comandos de file nativos (view_file, etc). USE SEMPRE o ag_toolkit.py",
-            "economia_1_map": "Para entender o arquivo, prefira 'ast-map' ou 'slim-context'. Evite 'context' com janelas enormes.",
-            "economia_2_lote": "Use 'rt --jsonpatch <file.json>' para fazer 5+ edicoes de uma vez sem gastar tokens em chamadas repetitivas.",
-            "economia_3_foco": "Sempre que possivel, direcione a edicao exata com '--lines' ou '--method' ao inves de replace generico."
+        "1. Edição Cirúrgica e Refatoração Avançada": {
+            "ast-edit": "Edição Estrutural Segura. Substitui o nó inteiro da AST (ex: --method enable_throttlestop -c B64). Imune a erros de indentação.",
+            "rt --regex": "Substituição via Expressões Regulares com suporte a grupos.",
+            "rt --lines": "Substitui exatamente as linhas X-Y (Use apenas se souber os bounds exatos).",
+            "rt --jsonpatch": "Aplica múltiplos patches simultâneos num único arquivo.",
+            "cf": "Cria um arquivo do zero (Genesis).",
+            "ib / ia": "Insere texto Before (Antes) ou After (Depois) de uma âncora específica."
         },
-        "File & Code Editing": {
-            "rl": "Replace cirurgico por linhas (ex: --lines 10-20 -c b64) - ECONOMIZA MUITO TOKENS",
-            "bundle": "Funde multiplos arquivos python resolvendo imports (--files a.py b.py --output out.py)",
-            "cf": "Cria arquivo ou recria do zero (--stdin aceita Stream UTF-8)",
-            "rt": "Replace text (cirurgico - ECONOMIZA TOKENS)",
-            "regex": "Replace text (regex)",
-            "ib": "Insert before anchor",
-            "ia": "Insert after anchor",
-            "replace-block": "Replace bloco exato",
-            "ensure": "Garante existencia de bloco de codigo",
-            "write-file": "Sobrescreve arquivo (--stdin UTF-8 suportado)",
-            "normalize": "Normaliza quebras de linha",
-            "format-kt": "Mecanismo auto-format Kotlin",
-            "ast-edit": "Edicao cirurgica via Treesitter",
-            "apply-diff": "Aplica um patch diff padrao (.patch)"
+        "2. Análise, Contexto e Leitura Inteligente": {
+            "ast-map": "Exibe o esqueleto do arquivo (Classes, Funções, Assinaturas) sem o código interno.",
+            "slim-context": "Retorna o arquivo inteiro com comentários, logs e whitespaces removidos para economizar contexto.",
+            "context": "Mostra as linhas ao redor de um match específico (-B 10 -A 10).",
+            "inspect-ui": "Raio-X de telas (Jetpack Compose, XML, etc)."
         },
-        "Batch Operations": {
-            "plan": "Aplica transacao em lote via JSON",
-            "speculate": "Motor especulativo paralelo",
-            "gen-plan": "Gera scaffolds de tasks e planos",
-            "refactor": "Substituicao massiva refatorada"
+        "3. Pesquisa e Indexação (Search)": {
+            "super-search": "Busca ultrarrápida usando banco FTS5 e BM25.",
+            "search": "Busca textual bruta em múltiplos arquivos.",
+            "semantic-search": "Pesquisa conceitual RAG."
         },
-        "AST, Search & Context": {
-            "ast-map": "Mapeamento estrutural AST (ECONOMIZA TOKENS)",
-            "context": "Janela de contexto cirurgica (ECONOMIZA TOKENS)",
-            "slim-context": "Compactador de tokens AST",
-            "inspect-file": "Inspecao de metadados do arquivo",
-            "search": "Busca literal em arquivos locais",
-            "dep-graph": "Grafo de dependencias",
-            "semantic-search": "Busca RAG e BM25",
-            "inspect-ui": "AST simplificada de arquivo UI",
-            "super-search": "Busca FTS5 Ultrarrapida",
-            "index-project": "Indexador BM25",
-            "semantic-ast": "AST JSON com dependencias resolvidas",
-            "init-treesitter": "Instala AST C-Bindings no VENV local"
+        "4. Resolução de Problemas (Healing & Debug)": {
+            "auto-heal": "Tenta curar builds quebrados injetando imports/dependências faltantes automaticamente.",
+            "heal-project": "Varredura completa consertando imports no projeto inteiro.",
+            "doctor": "Verificação de saúde do ambiente do Toolkit.",
+            "analyze-crash": "Vasculha logs (ex: ADB) e encontra a exata linha de código responsável pela falha."
         },
-        "Git, CI/CD & Pipeline": {
-            "auth": "Setup Global Auth Token",
-            "ls": "Lista repositorios no GitHub",
-            "clone": "Clona um repositorio GitHub (Autenticado)",
-            "init": "Inicializa um novo repositorio Git remoto e local",
-            "verify-sync": "Valida build, auto-cura, commita e push (Recomendado)",
-            "sync": "Commit e Push autenticado",
-            "pre-flight": "Verificacao pre-edicao git",
-            "diff-summary": "Resumo de alteracoes nao commitadas",
-            "monitor": "Monitora pipeline do Github Actions",
-            "list-builds": "Historico de builds (GitHub Actions)",
-            "snapshot": "Cria um checkpoint seguro do estado atual",
-            "restore-snap": "Restaura commit confiavel",
-            "restore-backup": "Restaura o projeto a partir de backup manual",
-            "resolve-conflicts": "Exporta Git Merges para auto-resolucao",
-            "apply-resolution": "Aplica e comita o merge git"
-        },
-        "Build, Heal & Diagnostics": {
-            "build": "Compilacao V32 SDK Auto-Heal",
-            "heal-project": "Auto-cura do projeto Kotlin",
-            "auto-heal": "Cura arquivos build.gradle e AndroidManifest",
-            "last-logs": "Log Intelligence V32",
-            "analyze-crash": "Mapeia ADB logcat a linhas de codigo",
-            "fix-imports": "Corrige imports Kotlin no arquivo",
-            "auto-import": "Resolve imports Ausentes do projeto inteiro",
-            "validate-imports": "Verificacao de imports estritos",
-            "add-dep": "Injeta dependencia externa"
-        },
-        "Android Generators & Architecture": {
-            "scaffold-screen": "Gera base para nova tela Compose",
-            "scaffold-guard": "Gera tela com tema base FocusGuard",
-            "scaffold-test": "Cria scaffold de testes unitarios",
-            "auto-mock-res": "Gera stubs vetoriais e de laytouts",
-            "register": "Registra servicos e activities no Manifest",
-            "fix-i18n": "Auto-migracao de strings para resource XML",
-            "lint-i18n": "Detecta strings hardcoded violando i18n",
-            "audit-bcast": "Cruza sendBroadcast x IntentFilter",
-            "audit-hardening": "Auditoria de seguranca FocusGuard",
-            "app-info": "Busca pacote e icone via Google Play",
-            "dead-code": "Analise de codigo morto",
-            "audit": "Auditoria completa e analise estatica profunda",
-            "project-scan": "Scan macro de estrutura do projeto",
-            "memory": "Memoria de arquitetura persistente"
-        },
-        "Concurrency & Tasks": {
-            "spawn-task": "Thread Background worker",
-            "list-tasks": "Status PIDs Threads",
-            "task-logs": "Logs sub-threads"
-        },
-        "Troubleshooting & Dicas": {
-            "emoji_rt_fail": "Se rt falhar com emojis/Unicode, o motor tenta NFC normalization automaticamente. Se persistir, use script Python com splice por linhas.",
-            "pyw_suportado": "Arquivos .pyw sao reconhecidos como Python em ast-map, search e context.",
-            "path_fora_raiz": "Se receber 'Caminho fora da raiz', execute o toolkit com CWD no diretorio do arquivo-alvo.",
-            "eof_context": "O context agora exibe [EOF] quando a janela atinge o final do arquivo.",
-            "erro_enriquecido": "Quando rt falha, a mensagem mostra preview da busca e dicas de acao."
+        "5. Background Tasks & Integrações": {
+            "spawn-task / list-tasks / task-logs": "Gerencia execução de scripts demorados no fundo.",
+            "resolve-conflicts / apply-resolution": "Sistema avançado para resolução de merges via AST.",
+            "ldplayer": "Automação, deploy e screenshot headless em emuladores Android."
         }
     }
-    print(json.dumps(tools))
+    
+    if getattr(args, 'json_mode', False) or os.environ.get('AG_JSON') == '1':
+        print(json.dumps(manifest))
+    else:
+        print_header("AG Toolkit V33 - AI Capabilities Manifest")
+        for category, commands in manifest.items():
+            print(f"\n{Colors.YELLOW}### {category}{Colors.RESET}")
+            for cmd, desc in commands.items():
+                print(f"  {Colors.GREEN}{cmd}{Colors.RESET}: {desc}")
+        print("\n" + "-"*50)
+        print("💡 DICA: Use 'python ag_toolkit.py explain -q <comando>' para ver sintaxe e exemplos de uso.")
 
 def main():
     parser = argparse.ArgumentParser()
