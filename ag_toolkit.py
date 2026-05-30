@@ -741,9 +741,17 @@ def context_window(file_arg: str, find_text: str, before: int, after: int, max_m
 def get_replacement_content(new_content: str, new_content_path: str, allow_empty: bool, is_b64: bool, use_stdin: bool = False) -> str:
     val = ""
     if use_stdin:
-        print_step("Lendo conteudo do STDIN (Pressione Ctrl+D para finalizar)...")
+        print_step("Lendo conteudo do STDIN (Termine com EOF em nova linha)...")
         import io
-        val = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8').read()
+        lines = []
+        try:
+            for line in io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8'):
+                if line.strip() == "EOF":
+                    break
+                lines.append(line)
+        except EOFError:
+            pass
+        val = "".join(lines)
     elif new_content_path:
         source = resolve_project_path(new_content_path)
         if is_binary_file(source): print_error_and_exit("O caminho apontou para um arquivo binario.")
@@ -757,8 +765,17 @@ def get_replacement_content(new_content: str, new_content_path: str, allow_empty
 
 def create_file(args):
     print_header("Create File (Genesis)")
-    path = resolve_project_path(args.file, allow_missing=True)
+    target = Path(args.file)
+    if target.is_absolute():
+        path = target
+    else:
+        path = resolve_project_path(args.file, allow_missing=True)
     
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except:
+        pass
+
     if path.exists() and not args.force:
         print_error_and_exit(f"O arquivo '{args.file}' ja existe. Use --force se deseja sobrepor.")
         
@@ -3641,10 +3658,24 @@ def agent_explain(args):
         print("Mecanica: Ele clona o workspace em N pastas, testa as solucoes concorrentemente e funde a que der sucesso.")
     elif cmd in ['ast', 'ast-map']:
         print("O que e: Mapa sintatico avancado V27 (-d 'pasta').")
-        print("Kotlin/Java: Extracao de assinaturas COMPLETAS (nome + params + tipo de retorno), nao apenas nomes simples.")
+        print("Kotlin/Java: Extracao de assinaturas COMPLETAS (nome , params , tipo de retorno), nao apenas nomes simples.")
         print("Python/JS/TS: Regex de alta cobertura para funcoes, classes e interfaces.")
         print("Por que usar: Em repositorios massivos, ler um arquivo de 1000 linhas consome a janela de contexto inteira. O AST gasta apenas ~150 tokens por arquivo.")
         print("Bonus: Detecta arvore de Compose Nodes em arquivos Kotlin automaticamente.")
+    elif cmd in ['cf', 'create-file']:
+        print("O que e: Cria um arquivo do zero com suporte a multiplos caminhos (absoluto ou relativo) e auto-criacao de diretorios.")
+        print("Sintaxe: python ag_toolkit.py cf -f <caminho> --stdin (le do console) ou -c <conteudo>.")
+    elif cmd in ['context']:
+        print("O que e: Busca de janela de contexto em torno de uma string.")
+        print("Sintaxe: python ag_toolkit.py context -f <arquivo> -q <busca> -B 10 -A 10")
+    elif cmd in ['search']:
+        print("O que e: Busca de string em todo o projeto ou diretorio especifico.")
+        print("Sintaxe: python ag_toolkit.py search -q <busca> [-d <diretorio>]")
+    elif cmd in ['slim-context']:
+        print("O que e: Mostra o codigo removendo comentarios vazios e logs para economizar tokens.")
+        print("Sintaxe: python ag_toolkit.py slim-context -f <arquivo>")
+    elif cmd in ['inspect-ui']:
+        print("O que e: Extrai a arvore de UI (Html/XML/Compose) de forma minificada.")
     elif cmd in ['rt', 'replace-text']:
         print("O que e: Edicao inteligente (Single ou Batch Multi-Arquivo).")
         print("Modo Arquivo Unico: -f <arquivo> -q <busca> -c <novo>")
@@ -4236,6 +4267,8 @@ def main():
             print_header('AG-TOOLKIT EDITOR V26 (SUPER AGENT EDITION)')
             print(f"{Colors.YELLOW}Ferramentas Classicas:{Colors.RESET}")
             print('  1. auth, ls, init, clone, sync, rt, plan, scan, info, context')
+            print('     -> CRIAR ARQUIVO: cf -f <caminho> -c <conteudo> (ou --stdin)')
+            print('     -> EDITAR TEXTO : rt -f <caminho> -q <busca_b64> -c <novo_b64> --b64')
             print(f"{Colors.YELLOW}Ferramentas Avancadas (V25 Super Agent):{Colors.RESET}")
             print('  2. ast-map        : Mapa de contexto enxuto (-d "src")')
             print('  3. dep-graph      : Busca arquivos que usam o simbolo (-q "nome_funcao")')
